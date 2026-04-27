@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OSC - Fixed PP Profile</title>
+
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
+<style>
+  :root {
+    --bg: #ffffff;
+    --border: #dbdbdb;
+    --light-gray: #fafafa;
+    --text: #262626;
+    --accent: #0095f6;
+    --danger: #ed4956;
+  }
+
+  body { 
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg); color: var(--text); margin: 0; padding-bottom: 70px; 
+  }
+
+  /* HEADER */
+  .topbar {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 10px 15px; border-bottom: 1px solid var(--border);
+    position: sticky; top: 0; background: white; z-index: 1000;
+  }
+
+  .container { max-width: 500px; margin: auto; }
+
+  /* POST STYLE */
+  .post-card { border-bottom: 8px solid #f0f2f5; background: white; position: relative; }
+  .post-header { display: flex; align-items: center; padding: 12px; gap: 10px; }
+  .post-profile { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; }
+  .post-user { font-weight: 600; font-size: 14px; }
+
+  .post-img-container { width: 100%; background: var(--light-gray); }
+  .post-img { width: 100%; display: block; }
+
+  .post-actions { padding: 10px 15px 5px; display: flex; gap: 15px; font-size: 22px; }
+  .post-caption { padding: 5px 15px 10px; font-size: 14px; border-bottom: 1px solid #f0f0f0; }
+
+  /* AREA KOMENTAR */
+  .comment-area { padding: 10px 15px; background: #fdfdfd; }
+  .comment-item { font-size: 13px; margin-bottom: 6px; }
+  .comment-item b { margin-right: 5px; }
+  
+  .comment-input-container {
+    display: flex; align-items: center; gap: 10px; padding: 10px 15px;
+    border-top: 1px solid var(--border);
+  }
+  .comment-input-container input {
+    flex: 1; border: none; font-size: 14px; outline: none; background: none;
+  }
+  .btn-send-comment {
+    color: var(--accent); font-weight: 600; cursor: pointer; background:none; border:none; width: auto;
+  }
+
+  /* NAV BAWAH */
+  .bottom-nav {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    background: white; border-top: 1px solid var(--border);
+    display: flex; justify-content: space-around; padding: 12px 0; z-index: 1000;
+  }
+  .nav-item { font-size: 24px; cursor: pointer; }
+
+  /* INPUT & TOMBOL */
+  .input-group { padding: 15px; border-bottom: 1px solid var(--border); }
+  input { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; margin-bottom: 10px; outline: none; }
+  button { width: 100%; padding: 10px; border: none; border-radius: 8px; background: var(--accent); color: white; font-weight: bold; cursor: pointer; }
+
+  .del-btn { position: absolute; right: 10px; top: 12px; color: #999; background: none; border: none; font-size: 20px; width: auto; }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <h2 style="margin:0; font-family: 'Arial Black';">OSC</h2>
+  <img src="https://i.pinimg.com/736x/59/af/9c/59af9cd100daf9aa154cc753dd58316d.jpg" style="width:30px; height:30px; border-radius:50%; object-fit:cover;">
+</div>
+
+<div class="container">
+  <div id="page-auth" class="input-group hidden">
+    <h3 style="text-align:center">Log In</h3>
+    <input id="name" placeholder="Username">
+    <input id="pass" type="password" placeholder="Password">
+    <button onclick="login()">Masuk</button>
+  </div>
+
+  <div id="page-home" class="hidden">
+    <div class="input-group">
+      <input id="postUrl" placeholder="Link gambar (URL)...">
+      <input id="caption" placeholder="Tulis caption...">
+      <button onclick="upload()">Bagikan</button>
+    </div>
+    <div id="posts"></div>
+  </div>
+
+  <div id="page-edit" class="hidden" style="padding: 20px; text-align: center;">
+    <img src="https://i.pinimg.com/736x/59/af/9c/59af9cd100daf9aa154cc753dd58316d.jpg" style="width:100px; height:100px; border-radius:50%; margin-bottom:10px; border: 3px solid var(--accent); object-fit:cover;">
+    <input id="newName" placeholder="Ganti nama..." oninput="autoSaveName()" style="text-align: center;">
+    <p style="color:gray; font-size:12px;">Nama terupdate otomatis</p>
+    <button style="background: var(--danger); margin-top: 20px;" onclick="logout()">Keluar</button>
+  </div>
+</div>
+
+<div class="bottom-nav">
+  <div class="nav-item" onclick="showPage('home')">🏠</div>
+  <div class="nav-item" onclick="showPage('edit')">👤</div>
+</div>
+
+<script>
+// LINK PP TETAP
+const MY_ICON = "https://i.pinimg.com/736x/59/af/9c/59af9cd100daf9aa154cc753dd58316d.jpg";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyDS1oCO6-xdkBcBbIPaURrhU1jYg475nxM",
+  authDomain: "sosdead-c4fe8.firebaseapp.com",
+  databaseURL: "https://sosdead-c4fe8-default-rtdb.asia-southeast1.firebasedatabase.app/",
+  projectId: "sosdead-c4fe8"
+};
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+let currentUser = localStorage.getItem("user") || "";
+
+function showPage(page) {
+  document.querySelectorAll('.container > div').forEach(div => div.classList.add('hidden'));
+  if(!currentUser) { document.getElementById('page-auth').classList.remove('hidden'); return; }
+  if(page === 'home') document.getElementById('page-home').classList.remove('hidden');
+  else if(page === 'edit') {
+    document.getElementById('page-edit').classList.remove('hidden');
+    document.getElementById('newName').value = currentUser;
+  }
+}
+
+function getUsers(){ return JSON.parse(localStorage.getItem("users") || "{}"); }
+function saveUsers(data){ localStorage.setItem("users", JSON.stringify(data)); }
+
+function login(){
+  let n = document.getElementById("name").value.trim();
+  let p = document.getElementById("pass").value.trim();
+  let u = getUsers();
+  if(!u[n] || u[n].password !== p) return alert("Salah login!");
+  currentUser = n;
+  localStorage.setItem("user", currentUser);
+  showPage('home');
+}
+
+function autoSaveName(){
+  let nName = document.getElementById("newName").value.trim();
+  let all = getUsers();
+  if(!nName || nName === currentUser || all[nName]) return;
+  let myPass = all[currentUser].password;
+  delete all[currentUser];
+  all[nName] = { password: myPass };
+  saveUsers(all);
+  currentUser = nName;
+  localStorage.setItem("user", currentUser);
+}
+
+function upload(){
+  let url = document.getElementById("postUrl").value.trim();
+  let cap = document.getElementById("caption").value.trim();
+  if(!url && !cap) return;
+  db.ref("posts").push({
+    user: currentUser, pp: MY_ICON, url: url, caption: cap, 
+    likes: 0, likedBy: {}, comments: []
+  });
+  document.getElementById("postUrl").value="";
+  document.getElementById("caption").value="";
+}
+
+function toggleLike(id){
+  db.ref("posts/"+id).once("value").then(snap => {
+    let p = snap.val();
+    let lb = p.likedBy || {};
+    let count = p.likes || 0;
+    if(lb[currentUser]) { delete lb[currentUser]; count--; } 
+    else { lb[currentUser] = true; count++; }
+    db.ref("posts/"+id).update({ likes: count, likedBy: lb });
+  });
+}
+
+function addComment(id){
+  let input = document.getElementById("in-"+id);
+  let txt = input.value.trim();
+  if(!txt) return;
+  db.ref("posts/"+id+"/comments").once("value").then(snap => {
+    let cms = snap.val() || [];
+    cms.push({ user: currentUser, text: txt });
+    db.ref("posts/"+id).update({ comments: cms });
+    input.value = "";
+  });
+}
+
+function deletePost(id) {
+  if(confirm("Hapus?")) db.ref("posts/" + id).remove();
+}
+
+function load(){
+  db.ref("posts").on("value", snap => {
+    let html = "";
+    let arr = [];
+    snap.forEach(c => { let p = c.val(); p.id = c.key; arr.push(p); });
+    arr.reverse().forEach(p => {
+      let isLiked = (p.likedBy && p.likedBy[currentUser]) ? "❤️" : "🤍";
+      let deleteBtn = (p.user === currentUser) ? `<button class="del-btn" onclick="deletePost('${p.id}')">⋮</button>` : "";
+      
+      let commentHtml = "";
+      if(p.comments) {
+        p.comments.forEach(c => {
+          commentHtml += `<div class="comment-item"><b>${c.user}</b> ${c.text}</div>`;
+        });
+      }
+
+      html += `
+      <div class="post-card">
+        <div class="post-header">
+          <img src="${MY_ICON}" class="post-profile">
+          <span class="post-user">${p.user}</span>
+          ${deleteBtn}
+        </div>
+        <div class="post-img-container">
+          ${p.url ? `<img src="${p.url}" class="post-img">` : `<div style="padding:20px; font-size:14px;">${p.caption}</div>`}
+        </div>
+        <div class="post-actions">
+          <span onclick="toggleLike('${p.id}')">${isLiked}</span>
+          <span onclick="document.getElementById('in-${p.id}').focus()">💬</span>
+        </div>
+        <div style="padding: 0 15px; font-weight:bold; font-size:13px; margin-bottom: 5px;">${p.likes || 0} suka</div>
+        <div class="post-caption"><b>${p.user}</b> ${p.url ? p.caption : ""}</div>
+        <div class="comment-area">${commentHtml}</div>
+        <div class="comment-input-container">
+          <input id="in-${p.id}" placeholder="Beri komentar...">
+          <button class="btn-send-comment" onclick="addComment('${p.id}')">Kirim</button>
+        </div>
+      </div>`;
+    });
+    document.getElementById("posts").innerHTML = html;
+  });
+}
+
+function logout(){ localStorage.clear(); location.reload(); }
+
+showPage(currentUser ? 'home' : 'auth');
+load();
+</script>
+</body>
+</html>
